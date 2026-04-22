@@ -9,6 +9,12 @@ Centralized Docker Compose stack for running local GCP emulator services that ca
 | `pubsub` | `pubsub` | `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` | 8085 |
 | `gcs` | `fakegcs` | `fsouza/fake-gcs-server:latest` | 4443 |
 | `cloudtasks` | `cloudtasks` | `ghcr.io/aertje/cloud-tasks-emulator:latest` | 8123 |
+| `firestore` | `firestore` | `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` | 8080 |
+| `spanner` | `spanner` | `gcr.io/cloud-spanner-emulator/emulator:latest` | 9010 (gRPC), 9020 (REST) |
+| `bigtable` | `bigtable` | `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` | 8086 |
+| `secretmanager` \| `secretmanager` | `nicholasgasior/gcp-secret-manager-fake:latest` ¹ | 4444 |
+
+¹ Community image — not an official Google emulator. Override with `GCPLOC_SECRETMANAGER_IMAGE`.
 
 All containers are reachable by hostname within the shared `gcploc_net` Docker bridge network.
 
@@ -146,6 +152,10 @@ Each application Docker Compose should declare `gcploc_net` as an external netwo
 | Pub/Sub emulator | `pubsub` | `8085` |
 | Fake GCS | `fakegcs` | `4443` |
 | Cloud Tasks | `cloudtasks` | `8123` |
+| Firestore emulator | `firestore` | `8080` |
+| Cloud Spanner | `spanner` | `9010` (gRPC), `9020` (REST) |
+| Bigtable emulator | `bigtable` | `8086` |
+| Secret Manager fake | `secretmanager` | `4444` |
 
 ### Env vars applications typically need
 
@@ -188,6 +198,12 @@ Key variables:
 | `GCPLOC_PUBSUB_HOST_PORT` | `8085` | Host port published for Pub/Sub emulator |
 | `GCPLOC_GCS_HOST_PORT` | `4443` | Host port published for Fake GCS |
 | `GCPLOC_CLOUDTASKS_HOST_PORT` | `8123` | Host port published for Cloud Tasks emulator |
+| `GCPLOC_FIRESTORE_HOST_PORT` | `8080` | Host port published for Firestore emulator |
+| `GCPLOC_SPANNER_GRPC_HOST_PORT` | `9010` | Host port for Spanner gRPC |
+| `GCPLOC_SPANNER_REST_HOST_PORT` | `9020` | Host port for Spanner REST |
+| `GCPLOC_BIGTABLE_HOST_PORT` | `8086` | Host port published for Bigtable emulator |
+| `GCPLOC_SECRETMANAGER_HOST_PORT` | `4444` | Host port for Secret Manager fake |
+| `GCPLOC_SECRETMANAGER_IMAGE` | `nicholasgasior/gcp-secret-manager-fake:latest` | Image for Secret Manager fake |
 | `GCPLOC_CP_URL` | `http://localhost:5173` | Control panel URL used by `gcploc start cp` |
 | `GCPLOC_TASKS_QUEUE_PRIMARY` | `default` | Primary queue name passed to Cloud Tasks emulator |
 | `GCPLOC_TASKS_QUEUE_SECONDARY` | `ai` | Secondary queue name passed to Cloud Tasks emulator |
@@ -202,8 +218,10 @@ Docker Compose profiles map to service targets:
 |---------|-----------------|
 | `pubsub` | `pubsub` |
 | `gcs` | `fakegcs` |
-| `cloudtasks` | `cloudtasks` |
-
+| `cloudtasks` | `cloudtasks` || `firestore` | `firestore` |
+| `spanner` | `spanner` |
+| `bigtable` | `bigtable` |
+| `secretmanager` | `secretmanager` |
 Multiple profiles can be combined:
 ```bash
 COMPOSE_PROFILES=gcs,cloudtasks docker compose up -d

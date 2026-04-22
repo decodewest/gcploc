@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 HOST = "127.0.0.1"
@@ -36,6 +37,38 @@ SERVICE_META = {
         "port": 8123,
         "profile": "cloudtasks",
         "quickCmd": "gcploc logs cloudtasks",
+    },
+    "gcploc_firestore": {
+        "id": "firestore",
+        "label": "Firestore Emulator",
+        "container": "firestore",
+        "port": 8080,
+        "profile": "firestore",
+        "quickCmd": "gcploc logs firestore",
+    },
+    "gcploc_spanner": {
+        "id": "spanner",
+        "label": "Cloud Spanner Emulator",
+        "container": "spanner",
+        "port": 9010,
+        "profile": "spanner",
+        "quickCmd": "gcploc logs spanner",
+    },
+    "gcploc_bigtable": {
+        "id": "bigtable",
+        "label": "Bigtable Emulator",
+        "container": "bigtable",
+        "port": 8086,
+        "profile": "bigtable",
+        "quickCmd": "gcploc logs bigtable",
+    },
+    "gcploc_secretmanager": {
+        "id": "secretmanager",
+        "label": "Secret Manager (Experimental)",
+        "container": "secretmanager",
+        "port": 4444,
+        "profile": "secretmanager",
+        "quickCmd": "gcploc logs secretmanager",
     },
 }
 
@@ -116,6 +149,25 @@ def snapshot() -> dict:
     }
 
 
+def get_container_logs(container_id: str, tail: int = 100) -> tuple[int, str, str]:
+    """Fetch logs for a container. Returns (status_code, container_full_name, logs_text)."""
+    # Find full container name from SERVICE_META by container id
+    full_name = None
+    for fname, meta in SERVICE_META.items():
+        if meta["id"] == container_id or meta["container"] == container_id:
+            full_name = fname
+            break
+    
+    if not full_name:
+        return 404, "", "Container not found"
+    
+    code, output = run_cmd(["docker", "logs", "--tail", str(tail), full_name])
+    if code != 0:
+        return 500, full_name, f"Error fetching logs: {output}"
+    
+    return 200, full_name, output
+
+
 class Handler(BaseHTTPRequestHandler):
     def _json(self, status_code: int, payload: dict):
         body = json.dumps(payload).encode("utf-8")
@@ -139,7 +191,35 @@ class Handler(BaseHTTPRequestHandler):
             self._stream_events()
             return
 
+        # Handle /api/logs/{container_id}
+        if self.path.startswith("/api/logs/"):
+            self._handle_logs()
+            return
+
         self._json(404, {"error": "not found"})
+
+    def _handle_logs(self):
+        # Parse path: /api/logs/{container_id}?tail=100
+        parsed_url = urllib.parse.urlparse(self.path)
+        path_parts = parsed_url.path.strip("/").split("/")
+        if len(path_parts) < 3:
+            self._json(400, {"error": "invalid path"})
+            return
+        
+        container_id = urllib.parse.unquote(path_parts[2])
+        
+        # Parse query params
+        params = urllib.parse.parse_qs(parsed_url.query)
+        tail = int(params.get("tail", ["100"])[0])
+        
+        status_code, container_name, logs = get_container_logs(container_id, tail)
+        self._json(status_code, {
+            "containerId": container_id,
+            "containerName": container_name,
+            "logs": logs,
+            "timestamp": int(time.time()),
+        })
+
 
     def _stream_events(self):
         self.send_response(200)

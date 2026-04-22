@@ -10,6 +10,10 @@
 #   gcploc start pubsub               # Pub/Sub emulator
 #   gcploc start gcs                  # Fake GCS
 #   gcploc start cloudtasks           # Cloud Tasks
+#   gcploc start firestore            # Firestore emulator
+#   gcploc start spanner              # Cloud Spanner emulator
+#   gcploc start bigtable             # Bigtable emulator
+#   gcploc start secretmanager        # Secret Manager (experimental)
 #   gcploc start cp                   # Control panel
 #
 # Manual usage (docker compose directly):
@@ -23,6 +27,10 @@
 #   pubsub        :8085  — Google Pub/Sub emulator
 #   fakegcs       :4443  — Google Cloud Storage (fake-gcs-server)
 #   cloudtasks    :8123  — Cloud Tasks emulator
+#   firestore     :8080  — Cloud Firestore emulator
+#   spanner       :9010  — Cloud Spanner emulator (gRPC), :9020 (REST)
+#   bigtable      :8086  — Cloud Bigtable emulator
+#   secretmanager :4444  — Secret Manager fake (community image, experimental)
 # =============================================================================
 
 networks:
@@ -99,6 +107,92 @@ services:
       - gcploc_net
     healthcheck:
       test: ["CMD-SHELL", "nc -z 127.0.0.1 8123"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # ── Cloud Firestore Emulator ──────────────────────────────────────────────
+  # Used by any local app needing Firestore document storage.
+  firestore:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: gcploc_firestore
+    profiles: [firestore, all]
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - firestore
+      - start
+      - --host-port=0.0.0.0:8080
+      - --project=${GCPLOC_PROJECT_ID:-gcploc-local}
+    ports:
+      - "${GCPLOC_FIRESTORE_HOST_PORT:-8080}:8080"
+    networks:
+      - gcploc_net
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ── Cloud Spanner Emulator ────────────────────────────────────────────────
+  # Used by any local app needing Spanner (strongly-consistent relational + semi-structured).
+  # Exposes gRPC on port 9010 and REST on port 9020.
+  spanner:
+    image: gcr.io/cloud-spanner-emulator/emulator:latest
+    container_name: gcploc_spanner
+    profiles: [spanner, all]
+    ports:
+      - "${GCPLOC_SPANNER_GRPC_HOST_PORT:-9010}:9010"
+      - "${GCPLOC_SPANNER_REST_HOST_PORT:-9020}:9020"
+    networks:
+      - gcploc_net
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 9010"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ── Cloud Bigtable Emulator ───────────────────────────────────────────────
+  # Used by any local app needing wide-column / time-series storage.
+  bigtable:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: gcploc_bigtable
+    profiles: [bigtable, all]
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - bigtable
+      - start
+      - --host-port=0.0.0.0:8086
+    ports:
+      - "${GCPLOC_BIGTABLE_HOST_PORT:-8086}:8086"
+    networks:
+      - gcploc_net
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8086"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ── Secret Manager Emulator (Experimental) ────────────────────────────────
+  # Community image — not an official Google emulator.
+  # Override the image via GCPLOC_SECRETMANAGER_IMAGE if you prefer an alternative.
+  secretmanager:
+    image: ${GCPLOC_SECRETMANAGER_IMAGE:-nicholasgasior/gcp-secret-manager-fake:latest}
+    container_name: gcploc_secretmanager
+    profiles: [secretmanager, all]
+    ports:
+      - "${GCPLOC_SECRETMANAGER_HOST_PORT:-4444}:4444"
+    networks:
+      - gcploc_net
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 4444"]
       interval: 5s
       timeout: 5s
       retries: 12

@@ -1,5 +1,14 @@
 # Attributions
 
+## Copyright
+
+gcploc is developed and maintained by **Decode West Inc.**
+
+- Website: <https://www.decodewest.com>
+- Contact: legal@decodewest.com
+
+---
+
 gcploc is built on the work of many individuals and teams who publish their tools
 as open-source software. This file credits those whose packages and container
 images are bundled into or distributed alongside gcploc.
@@ -28,6 +37,34 @@ images are bundled into or distributed alongside gcploc.
 - **License:** MIT
 - **Source:** <https://github.com/aertje/cloud-tasks-emulator>
 - **Notes:** A local emulator for Google Cloud Tasks queue management and scheduling.
+
+### Cloud Firestore Emulator
+- **Image:** `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators`
+- **Publisher:** Google LLC
+- **License:** Apache 2.0
+- **Source:** <https://github.com/GoogleCloudPlatform/cloud-sdk-docker>
+- **Notes:** Same Cloud SDK image used for Pub/Sub; started with the `firestore` emulator sub-command.
+
+### Cloud Spanner Emulator
+- **Image:** `gcr.io/cloud-spanner-emulator/emulator`
+- **Publisher:** Google LLC
+- **License:** Apache 2.0
+- **Source:** <https://github.com/GoogleCloudPlatform/cloud-spanner-emulator>
+- **Notes:** Official Cloud Spanner emulator; exposes gRPC on port 9010 and REST on port 9020.
+
+### Cloud Bigtable Emulator
+- **Image:** `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators`
+- **Publisher:** Google LLC
+- **License:** Apache 2.0
+- **Source:** <https://github.com/GoogleCloudPlatform/cloud-sdk-docker>
+- **Notes:** Same Cloud SDK image used for Pub/Sub; started with the `bigtable` emulator sub-command.
+
+### Secret Manager Fake (Experimental)
+- **Image:** `nicholasgasior/gcp-secret-manager-fake` (community image, not official)
+- **Author:** nicholasgasior
+- **License:** See source repository
+- **Source:** <https://github.com/nicholasgasior/gcp-secret-manager-fake>
+- **Notes:** Unofficial community image. Not an official Google emulator. Override with `GCPLOC_SECRETMANAGER_IMAGE` if an alternative is preferred.
 
 ---
 

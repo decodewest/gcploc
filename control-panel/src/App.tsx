@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Container, Moon, Play, RefreshCw, Server, Sun, TerminalSquare } from "lucide-react";
+import { AlertTriangle, Container, Moon, RefreshCw, Server, Sun, TerminalSquare } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { LogViewer } from "@/components/LogViewer";
 
 type ServiceStatus = "running" | "stopped" | "degraded";
 
@@ -17,11 +18,7 @@ type Service = {
   quickCmd: string;
 };
 
-const defaultServices: Service[] = [
-  { id: "pubsub", label: "Pub/Sub Emulator", container: "pubsub", port: 8085, status: "stopped", profile: "pubsub", quickCmd: "gcploc logs pubsub" },
-  { id: "gcs", label: "Fake GCS", container: "fakegcs", port: 4443, status: "stopped", profile: "gcs", quickCmd: "gcploc logs fakegcs" },
-  { id: "cloudtasks", label: "Cloud Tasks Emulator", container: "cloudtasks", port: 8123, status: "stopped", profile: "cloudtasks", quickCmd: "gcploc logs cloudtasks" },
-];
+const defaultServices: Service[] = [];
 
 type ApiSnapshot = {
   timestamp: number;
@@ -47,6 +44,11 @@ function App() {
   const [dependents, setDependents] = useState<string[]>([]);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [streamStatus, setStreamStatus] = useState<"connecting" | "live" | "degraded">("connecting");
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const selectedService = useMemo(
+    () => services.find((s) => s.id === selectedServiceId),
+    [services, selectedServiceId],
+  );
 
   const applySnapshot = (payload: ApiSnapshot) => {
     setServices(payload.services ?? defaultServices);
@@ -120,7 +122,7 @@ function App() {
         <header className="flex flex-col gap-4 rounded-xl border bg-card/80 p-5 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Local GCP Emulator Dashboard</p>
-            <h1 className="text-2xl font-semibold">gcploc Control Surface</h1>
+            <h1 className="text-2xl font-semibold">Control Panel</h1>
             <p className="text-sm text-muted-foreground">Live service status stream with fallback sync for resilient local observability.</p>
           </div>
           <div className="flex items-center gap-2">
@@ -131,10 +133,6 @@ function App() {
             <Button variant="outline" size="sm" onClick={toggleTheme}>
               {isDark ? <Sun className="mr-2 h-4 w-4" /> : <Moon className="mr-2 h-4 w-4" />}
               {isDark ? "Light" : "Dark"}
-            </Button>
-            <Button size="sm">
-              <Play className="mr-2 h-4 w-4" />
-              Start services
             </Button>
           </div>
         </header>
@@ -161,9 +159,14 @@ function App() {
                 <Row label="Endpoint" value={`${service.container}:${service.port}`} />
               </CardContent>
               <CardFooter>
-                <Button variant="outline" size="sm" className="w-full justify-start">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setSelectedServiceId(service.id)}
+                >
                   <TerminalSquare className="mr-2 h-4 w-4" />
-                  {service.quickCmd}
+                  View logs
                 </Button>
               </CardFooter>
             </Card>
@@ -198,6 +201,13 @@ function App() {
           </CardContent>
         </Card>
       </div>
+
+      <LogViewer
+        serviceId={selectedServiceId}
+        serviceName={selectedService?.label || ""}
+        isOpen={selectedServiceId !== null}
+        onClose={() => setSelectedServiceId(null)}
+      />
     </div>
   );
 }

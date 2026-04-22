@@ -15,17 +15,25 @@ from pathlib import Path
 
 import click
 
-EMULATOR_TARGETS = {"pubsub", "gcs", "cloudtasks"}
+EMULATOR_TARGETS = {"pubsub", "gcs", "cloudtasks", "firestore", "spanner", "bigtable", "secretmanager"}
 VALID_TARGETS = EMULATOR_TARGETS | {"services", "cp"}
 TARGET_TO_COMPOSE_SERVICES = {
     "pubsub": ["pubsub"],
     "gcs": ["fakegcs"],
     "cloudtasks": ["cloudtasks"],
+    "firestore": ["firestore"],
+    "spanner": ["spanner"],
+    "bigtable": ["bigtable"],
+    "secretmanager": ["secretmanager"],
 }
 TARGET_TO_HOST_PORT = {
     "pubsub": int(os.getenv("GCPLOC_PUBSUB_HOST_PORT", "8085")),
     "gcs": int(os.getenv("GCPLOC_GCS_HOST_PORT", "4443")),
     "cloudtasks": int(os.getenv("GCPLOC_CLOUDTASKS_HOST_PORT", "8123")),
+    "firestore": int(os.getenv("GCPLOC_FIRESTORE_HOST_PORT", "8080")),
+    "spanner": int(os.getenv("GCPLOC_SPANNER_GRPC_HOST_PORT", "9010")),
+    "bigtable": int(os.getenv("GCPLOC_BIGTABLE_HOST_PORT", "8086")),
+    "secretmanager": int(os.getenv("GCPLOC_SECRETMANAGER_HOST_PORT", "4444")),
 }
 
 GCPLOC_CP_URL = os.getenv("GCPLOC_CP_URL", "http://localhost:5173")
@@ -35,6 +43,23 @@ CONTROL_PANEL_DIR = COMPOSE_ROOT / "control-panel"
 CP_BACKEND_PATH = CONTROL_PANEL_DIR / "backend" / "server.py"
 DEFAULT_ALIASES_FILE = COMPOSE_ROOT / ".gcploc.aliases.toml"
 CP_STATE_FILE = COMPOSE_ROOT / ".gcploc.cp.state.json"
+
+
+def _section(title: str):
+    click.echo()
+    click.secho(f"=== {title} ===", bold=True)
+
+
+def _info(message: str):
+    click.secho(f"[info] {message}", fg="cyan")
+
+
+def _ok(message: str):
+    click.secho(f"[ok] {message}", fg="green")
+
+
+def _warn(message: str, *, err: bool = False):
+    click.secho(f"[warn] {message}", fg="yellow", err=err)
 
 
 def _load_aliases() -> dict[str, list[str]]:
@@ -93,7 +118,7 @@ def _run_compose(args: list[str], profiles: list[str] | None = None, **kwargs):
         env["COMPOSE_PROFILES"] = ",".join(sorted(set(profiles)))
 
     cmd = ["docker", "compose", *args]
-    click.echo(f"[gcploc] {' '.join(cmd)}" + (f"  (profiles: {env['COMPOSE_PROFILES']})" if env else ""))
+    _info(f"docker compose command: {' '.join(cmd)}" + (f"  (profiles: {env['COMPOSE_PROFILES']})" if env else ""))
 
     result = subprocess.run(cmd, cwd=COMPOSE_ROOT, env=env, **kwargs)
     if result.returncode != 0:
@@ -107,10 +132,11 @@ def _ensure_network():
         text=True,
     )
     if "gcploc_net" not in result.stdout:
-        click.echo("[gcploc] Creating Docker network: gcploc_net")
+        _info("Creating Docker network: gcploc_net")
         subprocess.run(["docker", "network", "create", "gcploc_net"], check=True)
+        _ok("Created network gcploc_net")
     else:
-        click.echo("[gcploc] Network gcploc_net already exists.")
+        _ok("Network gcploc_net already exists")
 
 
 def _url_reachable(url: str, timeout: float = 1.5) -> bool:
@@ -159,17 +185,17 @@ def _start_control_panel():
         raise click.ClickException("control-panel backend server not found.")
 
     if _cp_running() or _url_reachable(GCPLOC_CP_URL):
-        click.echo(f"[gcploc] Control panel already running at {GCPLOC_CP_URL}")
+        _ok(f"Control panel already running at {GCPLOC_CP_URL}")
         return
 
     node_modules = CONTROL_PANEL_DIR / "node_modules"
     if not node_modules.exists():
-        click.echo("[gcploc] Installing control panel dependencies...")
+        _info("Installing control panel dependencies")
         install_result = subprocess.run(["npm", "install"], cwd=CONTROL_PANEL_DIR)
         if install_result.returncode != 0:
             raise click.ClickException("Failed to install control panel dependencies.")
 
-    click.echo("[gcploc] Starting control panel backend...")
+    _info("Starting control panel backend")
     backend_proc = subprocess.Popen(
         [sys.executable, str(CP_BACKEND_PATH)],
         cwd=COMPOSE_ROOT,
@@ -178,7 +204,7 @@ def _start_control_panel():
         start_new_session=True,
     )
 
-    click.echo("[gcploc] Starting control panel frontend...")
+    _info("Starting control panel frontend")
     frontend_proc = subprocess.Popen(
         ["npm", "run", "dev"],
         cwd=CONTROL_PANEL_DIR,
@@ -196,9 +222,9 @@ def _start_control_panel():
         }
     )
 
-    click.echo(f"[gcploc] Control panel launch initiated: {GCPLOC_CP_URL}")
+    _ok(f"Control panel launch initiated: {GCPLOC_CP_URL}")
     if not _url_reachable(GCPLOC_CP_URL):
-        click.echo("[gcploc] Control panel may take a few seconds to become reachable.")
+        _warn("Control panel may take a few seconds to become reachable")
 
 
 def _stop_pid(pid: int):
@@ -219,19 +245,19 @@ def _stop_control_panel():
     frontend_pid = int(state.get("frontend_pid", 0))
 
     if not _pid_running(backend_pid) and not _pid_running(frontend_pid):
-        click.echo("[gcploc] Control panel is already stopped.")
+        _ok("Control panel is already stopped")
         if CP_STATE_FILE.exists():
             CP_STATE_FILE.unlink(missing_ok=True)
         return
 
-    click.echo("[gcploc] Stopping control panel...")
+    _info("Stopping control panel")
     if _pid_running(frontend_pid):
         _stop_pid(frontend_pid)
     if _pid_running(backend_pid):
         _stop_pid(backend_pid)
 
     CP_STATE_FILE.unlink(missing_ok=True)
-    click.echo("[gcploc] Control panel stopped.")
+    _ok("Control panel stopped")
 
 
 def _get_running_port_owners() -> dict[int, list[str]]:
@@ -277,8 +303,10 @@ def _ensure_required_ports_available(targets: list[str]):
         raise click.ClickException(
             "Host port conflict detected before startup:\n"
             f"{details}\n"
-            "Stop those containers, or set alternate ports in env (GCPLOC_PUBSUB_HOST_PORT, "
-            "GCPLOC_GCS_HOST_PORT, GCPLOC_CLOUDTASKS_HOST_PORT) and retry."
+            "Stop those containers, or set alternate ports in env "
+            "(GCPLOC_PUBSUB_HOST_PORT, GCPLOC_GCS_HOST_PORT, GCPLOC_CLOUDTASKS_HOST_PORT, "
+            "GCPLOC_FIRESTORE_HOST_PORT, GCPLOC_SPANNER_GRPC_HOST_PORT, "
+            "GCPLOC_BIGTABLE_HOST_PORT, GCPLOC_SECRETMANAGER_HOST_PORT) and retry."
         )
 
 
@@ -342,7 +370,10 @@ def _has_running_emulator_containers() -> bool:
     if result.returncode != 0:
         return False
     names = {line.strip() for line in result.stdout.splitlines() if line.strip()}
-    return any(name in names for name in ["gcploc_pubsub", "gcploc_fakegcs", "gcploc_cloudtasks"])
+    return any(name in names for name in [
+        "gcploc_pubsub", "gcploc_fakegcs", "gcploc_cloudtasks",
+        "gcploc_firestore", "gcploc_spanner", "gcploc_bigtable", "gcploc_secretmanager",
+    ])
 
 
 def _find_non_gcploc_dependents() -> list[str]:
@@ -358,7 +389,7 @@ def _confirm_safe_stop(force: bool, targets: list[str], full_down: bool):
     if not dependents or force:
         return
 
-    click.echo("[gcploc] Warning: containers currently attached to gcploc_net were detected:", err=True)
+    _warn("Containers currently attached to gcploc_net were detected:", err=True)
     for name in dependents:
         click.echo(f"  - {name}", err=True)
 
@@ -376,14 +407,15 @@ def cli():
 def start(targets: tuple[str, ...]):
     """Start emulator services and/or control panel.
 
-    Targets: services, pubsub, gcs, cloudtasks, cp
+    Targets: services, pubsub, gcs, cloudtasks, firestore, spanner, bigtable, secretmanager, cp
 
     Examples:
         gcploc start services
-        gcploc start gcs
+        gcploc start gcs firestore
         gcploc start cp
         gcploc start services cp
     """
+    _section("Start")
     resolved = _resolve_targets(targets)
     cp_requested = "cp" in resolved
     emulator_targets = _expand_emulator_targets([t for t in resolved if t != "cp"])
@@ -392,15 +424,16 @@ def start(targets: tuple[str, ...]):
         _ensure_required_ports_available(emulator_targets)
         _ensure_network()
         _run_compose(["up", "-d", "--wait"], profiles=emulator_targets)
-        click.echo(f"[gcploc] Emulators started for: {', '.join(emulator_targets)}")
+        _ok(f"Emulators started for: {', '.join(emulator_targets)}")
         if not cp_requested:
-            click.echo(f"[gcploc] Control panel URL: {GCPLOC_CP_URL}")
-            click.echo("[gcploc] Start control panel with: gcploc start cp")
+            click.echo()
+            _info(f"Control panel URL: {GCPLOC_CP_URL}")
+            _info("Start control panel with: gcploc start cp")
 
     if cp_requested:
         _start_control_panel()
         if not _has_running_emulator_containers():
-            click.echo("[gcploc] Control panel started, but no emulator services are currently running.")
+            _warn("Control panel started, but no emulator services are currently running")
 
 
 @cli.command()
@@ -415,10 +448,11 @@ def stop(targets: tuple[str, ...], force: bool):
         gcploc stop gcs            # stop selected emulator
         gcploc stop cp             # stop control panel only
     """
+    _section("Stop")
     if not targets:
         has_any = _has_gcploc_containers() or _cp_running()
         if not has_any:
-            click.echo("[gcploc] No gcploc services or control panel found; everything is already stopped.")
+            _ok("No gcploc services or control panel found; everything is already stopped")
             return
 
         if _has_gcploc_containers():
@@ -435,7 +469,7 @@ def stop(targets: tuple[str, ...], force: bool):
         _confirm_safe_stop(force=force, targets=emulator_targets, full_down=len(emulator_targets) == len(EMULATOR_TARGETS))
         if len(emulator_targets) == len(EMULATOR_TARGETS):
             if not _has_gcploc_containers():
-                click.echo("[gcploc] No emulator containers found; emulator services already stopped.")
+                _ok("No emulator containers found; emulator services already stopped")
             else:
                 _run_compose(["down"], profiles=["all"])
         else:
@@ -453,7 +487,7 @@ def stop(targets: tuple[str, ...], force: bool):
 @cli.command()
 def status():
     """Show running status for emulator services only."""
-    _run_compose(["ps", "pubsub", "fakegcs", "cloudtasks"])
+    _run_compose(["ps", "pubsub", "fakegcs", "cloudtasks", "firestore", "spanner", "bigtable", "secretmanager"])
 
 
 @cli.command("ports")
@@ -462,16 +496,17 @@ def ports_cmd():
     running_owners = _get_running_port_owners()
     gcploc_owned = _get_gcploc_container_names()
 
-    click.echo("[gcploc] Port ownership overview")
+    _section("Ports")
+    _info("Port ownership overview")
     for target in sorted(TARGET_TO_HOST_PORT):
         port = TARGET_TO_HOST_PORT[target]
         owners = sorted(set(running_owners.get(port, [])))
         if not owners:
-            click.echo(f"- {target}: {port} (free)")
+            _ok(f"{target:<10} {port}  free")
             continue
 
         owned_markers = [f"{name}{' (gcploc)' if name in gcploc_owned else ''}" for name in owners]
-        click.echo(f"- {target}: {port} (in use by: {', '.join(owned_markers)})")
+        _warn(f"{target:<10} {port}  in use by: {', '.join(owned_markers)}")
 
 
 @cli.command()
@@ -494,29 +529,34 @@ def logs(service: str | None, follow: bool, tail: str):
 @cli.command()
 def doctor():
     """Check Docker, network, and emulator health."""
-    click.echo("[gcploc] Checking Docker daemon...")
+    _section("Doctor")
+    _info("Checking Docker daemon")
     result = subprocess.run(["docker", "info", "--format", "{{.ServerVersion}}"], capture_output=True, text=True)
     if result.returncode != 0:
-        click.echo("[gcploc] ERROR: Docker is not running.", err=True)
+        click.secho("[error] Docker is not running.", fg="red", err=True)
         sys.exit(1)
-    click.echo(f"[gcploc] Docker OK (version {result.stdout.strip()})")
+    _ok(f"Docker OK (version {result.stdout.strip()})")
 
-    click.echo("[gcploc] Checking gcploc_net network...")
+    _info("Checking gcploc_net network")
     net_result = subprocess.run(
         ["docker", "network", "ls", "--filter", "name=gcploc_net", "--format", "{{.Name}}"],
         capture_output=True,
         text=True,
     )
     if "gcploc_net" in net_result.stdout:
-        click.echo("[gcploc] gcploc_net: EXISTS")
+        _ok("gcploc_net: EXISTS")
     else:
-        click.echo("[gcploc] gcploc_net: NOT FOUND (run: gcploc start services)")
+        _warn("gcploc_net: NOT FOUND (run: gcploc start services)")
 
-    click.echo("[gcploc] Checking containers...")
+    _info("Checking emulator containers")
     containers = {
         "gcploc_pubsub": 8085,
         "gcploc_fakegcs": 4443,
         "gcploc_cloudtasks": 8123,
+        "gcploc_firestore": 8080,
+        "gcploc_spanner": 9010,
+        "gcploc_bigtable": 8086,
+        "gcploc_secretmanager": 4444,
     }
     ps_result = subprocess.run(
         ["docker", "ps", "--filter", "label=com.docker.compose.project=gcploc", "--format", "{{.Names}}\t{{.Status}}"],
@@ -526,16 +566,17 @@ def doctor():
     running = ps_result.stdout.strip()
     for name, port in containers.items():
         if name in running:
-            click.echo(f"[gcploc] {name} (:{port}): RUNNING")
+            _ok(f"{name} (:{port}): RUNNING")
         else:
-            click.echo(f"[gcploc] {name} (:{port}): NOT RUNNING")
+            _warn(f"{name} (:{port}): NOT RUNNING")
 
     if _cp_running():
-        click.echo(f"[gcploc] Control panel process: RUNNING ({GCPLOC_CP_URL})")
+        _ok(f"Control panel process: RUNNING ({GCPLOC_CP_URL})")
     else:
-        click.echo("[gcploc] Control panel process: NOT RUNNING")
+        _warn("Control panel process: NOT RUNNING")
 
-    click.echo("[gcploc] Doctor check complete.")
+    click.echo()
+    _ok("Doctor check complete")
 
 
 if __name__ == "__main__":
