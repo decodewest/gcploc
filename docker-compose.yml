@@ -1,0 +1,108 @@
+# =============================================================================
+# gcploc — Centralised GCP Local Emulators
+# =============================================================================
+#
+# Provides emulated GCP services for local development across all projects.
+# Each service is tagged with one or more profiles matching service names.
+#
+# Usage (via CLI):
+#   gcploc start services             # All emulator services
+#   gcploc start pubsub               # Pub/Sub emulator
+#   gcploc start gcs                  # Fake GCS
+#   gcploc start cloudtasks           # Cloud Tasks
+#   gcploc start cp                   # Control panel
+#
+# Manual usage (docker compose directly):
+#   COMPOSE_PROFILES=pubsub docker compose up -d
+#   COMPOSE_PROFILES=pubsub,gcs,cloudtasks docker compose up -d
+#
+# Projects connect via the external network declared here:
+#   network: gcploc_net (bridge, stable container hostnames)
+#
+# Container hostnames (reachable by any project on gcploc_net):
+#   pubsub        :8085  — Google Pub/Sub emulator
+#   fakegcs       :4443  — Google Cloud Storage (fake-gcs-server)
+#   cloudtasks    :8123  — Cloud Tasks emulator
+# =============================================================================
+
+networks:
+  gcploc_net:
+    name: gcploc_net
+    external: true
+
+services:
+
+  # ── Google Cloud Pub/Sub Emulator ─────────────────────────────────────────
+  # Used by any local app needing Pub/Sub.
+  pubsub:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: gcploc_pubsub
+    profiles: [pubsub, all]
+    command:
+      - gcloud
+      - beta
+      - emulators
+      - pubsub
+      - start
+      - --host-port=0.0.0.0:8085
+      - --project=${GCPLOC_PROJECT_ID:-gcploc-local}
+    ports:
+      - "${GCPLOC_PUBSUB_HOST_PORT:-8085}:8085"
+    networks:
+      - gcploc_net
+    healthcheck:
+      # The emulator exposes a REST API; curl the root to confirm it's up
+      test: ["CMD", "curl", "-sf", "http://localhost:8085"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  # ── Fake GCS Server (Google Cloud Storage) ────────────────────────────────
+  # Used by any local app needing GCS semantics.
+  # Image: fsouza/fake-gcs-server — battle-tested GCS emulator
+  fakegcs:
+    image: fsouza/fake-gcs-server:latest
+    container_name: gcploc_fakegcs
+    profiles: [gcs, all]
+    command:
+      - -scheme=http
+      - -port=4443
+      - -host=0.0.0.0
+    ports:
+      - "${GCPLOC_GCS_HOST_PORT:-4443}:4443"
+    volumes:
+      - fakegcs_data:/data
+    networks:
+      - gcploc_net
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4443/storage/v1/b"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # ── Cloud Tasks Emulator ──────────────────────────────────────────────────
+  # Used by any local app needing task queue emulation.
+  cloudtasks:
+    image: ghcr.io/aertje/cloud-tasks-emulator:latest
+    container_name: gcploc_cloudtasks
+    profiles: [cloudtasks, all]
+    command:
+      - -host=0.0.0.0
+      - -port=8123
+      - -queue=projects/${GCPLOC_PROJECT_ID:-gcploc-local}/locations/${GCPLOC_TASKS_LOCATION:-us-central1}/queues/${GCPLOC_TASKS_QUEUE_PRIMARY:-default}
+      - -queue=projects/${GCPLOC_PROJECT_ID:-gcploc-local}/locations/${GCPLOC_TASKS_LOCATION:-us-central1}/queues/${GCPLOC_TASKS_QUEUE_SECONDARY:-ai}
+    ports:
+      - "${GCPLOC_CLOUDTASKS_HOST_PORT:-8123}:8123"
+    networks:
+      - gcploc_net
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z 127.0.0.1 8123"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+volumes:
+  fakegcs_data:

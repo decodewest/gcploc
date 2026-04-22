@@ -1,0 +1,11 @@
+.venv/
+.venv-1/
+control-panel/node_modules/
+control-panel/dist/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.env
+.gcploc.aliases.toml

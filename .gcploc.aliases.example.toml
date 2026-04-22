@@ -1,0 +1,8 @@
+# Optional local aliases for gcploc service targets.
+# Copy to .gcploc.aliases.toml (ignored by git), then customize.
+# You can also point to another file path with GCPLOC_ALIASES_FILE.
+
+[aliases]
+# Generic examples:
+core = ["pubsub", "gcs"]
+full = ["services"]
