@@ -101,6 +101,7 @@ services:
       - -port=8123
       - -queue=projects/${GCPLOC_PROJECT_ID:-gcploc-local}/locations/${GCPLOC_TASKS_LOCATION:-us-central1}/queues/${GCPLOC_TASKS_QUEUE_PRIMARY:-default}
       - -queue=projects/${GCPLOC_PROJECT_ID:-gcploc-local}/locations/${GCPLOC_TASKS_LOCATION:-us-central1}/queues/${GCPLOC_TASKS_QUEUE_SECONDARY:-ai}
+      - -queue=projects/${GCPLOC_PROJECT_ID:-gcploc-local}/locations/${GCPLOC_TASKS_LOCATION:-us-central1}/queues/notifications-dispatch
     ports:
       - "${GCPLOC_CLOUDTASKS_HOST_PORT:-8123}:8123"
     networks:
