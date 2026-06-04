@@ -1,5 +1,5 @@
 .venv/
-.venv-1/
+.venv*/
 control-panel/node_modules/
 control-panel/dist/
 __pycache__/
