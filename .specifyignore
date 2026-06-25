@@ -1,0 +1,7 @@
+# GCP emulators - mainly configuration
+# These are small, can include everything
+# But skip any test/demo data
+
+demo-data/
+test-fixtures/
+*.log

@@ -1,0 +1,5 @@
+# Mostly inherited from root; minimal repo-specific rules
+
+demo-data/
+test-fixtures/
+*.log
