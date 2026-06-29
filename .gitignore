@@ -10,3 +10,4 @@ __pycache__/
 .env
 .gcploc.aliases.toml
 .gcploc.cp.state.json
+*.log
