@@ -164,22 +164,40 @@ For Pub/Sub:
 PUBSUB_EMULATOR_HOST=pubsub:8085
 ```
 
-For GCS:
+For GCS (use `STORAGE_EMULATOR_HOST` — standard for `google-cloud-storage`):
+
 ```
-FAKE_GCS_URL=http://fakegcs:4443
+STORAGE_EMULATOR_HOST=http://fakegcs:4443
+STORAGE_EMULATOR_PUBLIC_HOST=http://localhost:4443
 ```
 
-For Cloud Tasks + GCS:
+For Cloud Tasks + GCS (Agabee local dev):
+
 ```
 CLOUD_TASKS_EMULATOR_HOST=cloudtasks:8123
 STORAGE_EMULATOR_HOST=http://fakegcs:4443
+STORAGE_EMULATOR_PUBLIC_HOST=http://localhost:4443
+CLOUD_TASKS_HANDLER_URL=http://backend:8000/api/tasks/execute/
 ```
+
+### Agabee consumer example (Vulcan)
+
+Agabee `backend` joins external `gcploc_net` and sets emulator hostnames in [`agabee/docker-compose.yml`](../agabee/docker-compose.yml). **Never** set these variables in GCP Cloud Run / Terraform.
+
+```bash
+pip install -e gcploc/cli
+gcploc start agabee          # alias: gcs + cloudtasks
+kobi infra init-local        # queues + agabee-local bucket
+kobi up -d
+```
+
+Canonical guide: [govern/docs/LOCAL-DEVELOPMENT.md](../govern/docs/LOCAL-DEVELOPMENT.md#gcp-emulators-gcploc)
 
 ## Resource initialization
 
-gcploc intentionally does not create app-specific topics, buckets, or queues.
+gcploc intentionally does not create app-specific topics, buckets, or queues under the **application** project ID.
 
-Applications should manage their own resource bootstrapping scripts or migrations.
+For Agabee, run **`kobi infra init-local`** after emulators are up (creates `agabee-local` queues and the documents bucket). gcploc only pre-seeds queues under `GCPLOC_PROJECT_ID` (`gcploc-local` by default).
 
 ## Configuration
 
@@ -215,13 +233,17 @@ If startup fails with host port conflicts, either stop the conflicting container
 Docker Compose profiles map to service targets:
 
 | Profile | Services started |
-|---------|-----------------|
+|---------|------------------|
 | `pubsub` | `pubsub` |
 | `gcs` | `fakegcs` |
-| `cloudtasks` | `cloudtasks` || `firestore` | `firestore` |
+| `cloudtasks` | `cloudtasks` |
+| `firestore` | `firestore` |
 | `spanner` | `spanner` |
 | `bigtable` | `bigtable` |
 | `secretmanager` | `secretmanager` |
+
+Committed alias **`agabee`** = `gcs` + `cloudtasks` (see `.gcploc.aliases.toml`).
+
 Multiple profiles can be combined:
 ```bash
 COMPOSE_PROFILES=gcs,cloudtasks docker compose up -d

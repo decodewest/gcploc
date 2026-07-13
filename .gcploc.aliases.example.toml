@@ -3,6 +3,8 @@
 # You can also point to another file path with GCPLOC_ALIASES_FILE.
 
 [aliases]
+# Vulcan / Agabee — signed GCS uploads + Cloud Tasks (project docs, workbench, etc.)
+agabee = ["gcs", "cloudtasks"]
 # Generic examples:
 core = ["pubsub", "gcs"]
 full = ["services"]
