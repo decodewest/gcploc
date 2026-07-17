@@ -67,8 +67,20 @@ def _load_aliases() -> dict[str, list[str]]:
     if not aliases_file.exists():
         return {}
 
-    with aliases_file.open("rb") as f:
-        raw = tomllib.load(f)
+    try:
+        with aliases_file.open("rb") as f:
+            raw = tomllib.load(f)
+    except tomllib.TOMLDecodeError as e:
+        raise click.ClickException(
+            f"Could not parse aliases config at {aliases_file}:\n"
+            f"  {e}\n"
+            "Fix the TOML (a common cause is defining the same alias name twice) "
+            "or set GCPLOC_ALIASES_FILE to a valid file."
+        ) from e
+    except OSError as e:
+        raise click.ClickException(
+            f"Could not read aliases config at {aliases_file}: {e}"
+        ) from e
 
     aliases = raw.get("aliases", {})
     if not isinstance(aliases, dict):
