@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## Artemis governance
+
+Before non-trivial changes: read the shared Artemis constitution at
+`../govern/.specify/memory/constitution.md` (veto power over plans/tasks).
+Write authority ends at this repo root — do not edit sibling Artemis repos in this session.
+Archives under `../docs/archives/` are out-of-band (human-EM gate).
+
 ## Project purpose
 
 gcploc provides a shared local emulator stack for common GCP services so multiple
