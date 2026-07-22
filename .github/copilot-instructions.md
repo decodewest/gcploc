@@ -41,7 +41,9 @@
 
 ## Guardrails
 
-- Keep this repository generic: no app- or org-specific resource names.
+- Keep this repository generic: no app- or org-specific resource names in committed files.
+- Local aliases stay private (`.gcploc.aliases.toml` is gitignored); example aliases must stay placeholder-only.
 - Maintain safe stop behavior; do not remove dependent-container warnings.
 - Do not hardcode local paths or secrets.
 - Keep command names centered on `services` and `cp`.
+- CLI `logs` and the control panel must accept logical service targets (e.g. `gcs`), not only compose names.

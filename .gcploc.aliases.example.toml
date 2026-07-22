@@ -1,10 +1,20 @@
 # Optional local aliases for gcploc service targets.
-# Copy to .gcploc.aliases.toml (ignored by git), then customize.
-# You can also point to another file path with GCPLOC_ALIASES_FILE.
+#
+# This file is an example only. Copy it to .gcploc.aliases.toml (gitignored)
+# and customize for your machine. Do not commit real project or product names.
+#
+# Or point elsewhere with:
+#   export GCPLOC_ALIASES_FILE=/path/to/aliases.toml
+#
+# Valid targets: services, pubsub, gcs, cloudtasks, firestore, spanner,
+#                bigtable, secretmanager, cp
 
 [aliases]
-# Vulcan / Agabee — signed GCS uploads + Cloud Tasks (project docs, workbench, etc.)
-agabee = ["gcs", "cloudtasks"]
-# Generic examples:
-core = ["pubsub", "gcs"]
-full = ["services"]
+# Start a common subset:
+# myapp = ["pubsub", "gcs"]
+#
+# Storage + async workers:
+# workers = ["gcs", "cloudtasks"]
+#
+# Everything including the control panel:
+# full = ["services", "cp"]

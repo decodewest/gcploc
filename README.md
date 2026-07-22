@@ -12,7 +12,7 @@ Centralized Docker Compose stack for running local GCP emulator services that ca
 | `firestore` | `firestore` | `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` | 8080 |
 | `spanner` | `spanner` | `gcr.io/cloud-spanner-emulator/emulator:latest` | 9010 (gRPC), 9020 (REST) |
 | `bigtable` | `bigtable` | `gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators` | 8086 |
-| `secretmanager` \| `secretmanager` | `nicholasgasior/gcp-secret-manager-fake:latest` ¹ | 4444 |
+| `secretmanager` | `secretmanager` | `nicholasgasior/gcp-secret-manager-fake:latest` ¹ | 4444 |
 
 ¹ Community image — not an official Google emulator. Override with `GCPLOC_SECRETMANAGER_IMAGE`.
 
@@ -42,40 +42,27 @@ Where it lives:
 - Main dashboard: `control-panel/src/App.tsx`
 - Theme and tokens: `control-panel/src/index.css`
 - UI primitives: `control-panel/src/components/ui/*`
+- Status / SSE / logs API: `control-panel/backend/server.py`
 
-Preview (mock data):
-
-| Metric | Mock value |
-|--------|------------|
-| Running services | `2/3` |
-| Network | `gcploc_net` |
-| Dependents detected | `2` |
-| Theme | `Dark` |
-
-Example stop-safety signal shown in the control panel:
-
-```text
-[gcploc] Warning: containers currently attached to gcploc_net were detected:
-- orders-api
-- billing-worker
-Proceed and stop all gcploc services? [y/N]
-```
-
-Run directly:
+Run via CLI (recommended):
 
 ```bash
-npm --prefix control-panel run api
+gcploc start cp
+```
 
-cd control-panel
-npm install
-npm run dev
+Or run directly:
+
+```bash
+npm --prefix control-panel install
+npm --prefix control-panel run api   # backend on :8787
+npm --prefix control-panel run dev   # UI on :5173
 ```
 
 Open `http://localhost:5173` in your browser.
 
-The dashboard now uses SSE (`/api/events`) for near real-time updates and falls back to a low-frequency status sync (`/api/status`) every 30s.
+The dashboard uses SSE (`/api/events`) for near real-time updates, falls back to `/api/status` every 30s, and serves container logs via `/api/logs/{serviceId}`.
 
-The control panel provides observability and safe-stop UX. It is intentionally read-oriented and designed as a low-color control surface for local emulator workflows.
+The control panel is intentionally read-oriented: live status, dependents on `gcploc_net`, and per-service log viewing.
 
 ## Usage
 
@@ -113,9 +100,10 @@ gcploc status
 # Show required ports and who is using them
 gcploc ports
 
-# Tail logs for a specific service
+# Tail logs (logical targets or compose names both work)
 gcploc logs pubsub
-gcploc logs -f fakegcs
+gcploc logs -f gcs
+gcploc logs fakegcs
 
 # Diagnose potential issues
 gcploc doctor
@@ -125,21 +113,22 @@ gcploc doctor
 
 ## Optional local aliases
 
-You can keep project-style commands locally without hardcoding project names in this repo.
+Aliases are **local-only** so personal or internal project names never ship in this repo.
 
 1. Copy `.gcploc.aliases.example.toml` to `.gcploc.aliases.toml`
-2. Add your own alias mappings
-3. Use aliases in commands like `gcploc start myapp`
+2. Uncomment or add your own alias mappings
+3. Use them: `gcploc start myapp`
 
 Example:
 
 ```toml
 [aliases]
 myapp = ["pubsub", "gcs"]
-legacy = ["gcs", "cloudtasks"]
+workers = ["gcs", "cloudtasks"]
+full = ["services", "cp"]
 ```
 
-The default alias file `.gcploc.aliases.toml` is gitignored. You can also point to a custom path with `GCPLOC_ALIASES_FILE`.
+`.gcploc.aliases.toml` is gitignored. Point elsewhere with `GCPLOC_ALIASES_FILE` if needed.
 
 ## Connecting applications
 
@@ -160,6 +149,7 @@ Each application Docker Compose should declare `gcploc_net` as an external netwo
 ### Env vars applications typically need
 
 For Pub/Sub:
+
 ```
 PUBSUB_EMULATOR_HOST=pubsub:8085
 ```
@@ -171,33 +161,35 @@ STORAGE_EMULATOR_HOST=http://fakegcs:4443
 STORAGE_EMULATOR_PUBLIC_HOST=http://localhost:4443
 ```
 
-For Cloud Tasks + GCS (Agabee local dev):
+For Cloud Tasks:
 
 ```
 CLOUD_TASKS_EMULATOR_HOST=cloudtasks:8123
-STORAGE_EMULATOR_HOST=http://fakegcs:4443
-STORAGE_EMULATOR_PUBLIC_HOST=http://localhost:4443
-CLOUD_TASKS_HANDLER_URL=http://backend:8000/api/tasks/execute/
 ```
 
-### Agabee consumer example (Vulcan)
+### Example: join from another Compose project
 
-Agabee `backend` joins external `gcploc_net` and sets emulator hostnames in [`agabee/docker-compose.yml`](../agabee/docker-compose.yml). **Never** set these variables in GCP Cloud Run / Terraform.
+```yaml
+services:
+  api:
+    environment:
+      PUBSUB_EMULATOR_HOST: pubsub:8085
+      STORAGE_EMULATOR_HOST: http://fakegcs:4443
+      CLOUD_TASKS_EMULATOR_HOST: cloudtasks:8123
+    networks:
+      - default
+      - gcploc_net
 
-```bash
-pip install -e gcploc/cli
-gcploc start agabee          # alias: gcs + cloudtasks
-kobi infra init-local        # queues + agabee-local bucket
-kobi up -d
+networks:
+  gcploc_net:
+    external: true
 ```
 
-Canonical guide: [govern/docs/LOCAL-DEVELOPMENT.md](../govern/docs/LOCAL-DEVELOPMENT.md#gcp-emulators-gcploc)
+Do **not** set emulator host variables in production (Cloud Run, Terraform, etc.).
 
 ## Resource initialization
 
-gcploc intentionally does not create app-specific topics, buckets, or queues under the **application** project ID.
-
-For Agabee, run **`kobi infra init-local`** after emulators are up (creates `agabee-local` queues and the documents bucket). gcploc only pre-seeds queues under `GCPLOC_PROJECT_ID` (`gcploc-local` by default).
+gcploc intentionally does not create app-specific topics, buckets, or queues under your application project ID. It only pre-seeds Cloud Tasks queues under `GCPLOC_PROJECT_ID` (`gcploc-local` by default). Create application resources from your own tooling after emulators are up.
 
 ## Configuration
 
@@ -206,6 +198,8 @@ Copy `.env.example` to `.env` (defaults work for standard dev setup):
 ```bash
 cp .env.example .env
 ```
+
+The CLI loads `.env` for port checks (`ports`, conflict detection on `start`). Docker Compose also reads `.env` automatically. Process environment variables always win over `.env`.
 
 Key variables:
 
@@ -242,9 +236,8 @@ Docker Compose profiles map to service targets:
 | `bigtable` | `bigtable` |
 | `secretmanager` | `secretmanager` |
 
-Committed alias **`agabee`** = `gcs` + `cloudtasks` (see `.gcploc.aliases.toml`).
-
 Multiple profiles can be combined:
+
 ```bash
 COMPOSE_PROFILES=gcs,cloudtasks docker compose up -d
 # or via CLI:

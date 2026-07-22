@@ -35,8 +35,8 @@ Docker Compose orchestration, and an optional web control panel.
 
 ## Contribution guardrails
 
-- Keep the repository generic and reusable; avoid project-specific names and business terms in core emulator code.
-- **Agabee** is the reference Vulcan consumer — document integration in README and link to `govern/docs/LOCAL-DEVELOPMENT.md`; use alias `agabee = ["gcs", "cloudtasks"]` in `.gcploc.aliases.toml`.
+- Keep the repository generic and reusable; avoid project-specific names and business terms in committed files.
+- Local aliases stay private: `.gcploc.aliases.toml` is gitignored. Ship only generic placeholders in `.gcploc.aliases.example.toml`.
 - New emulator services must be configurable and documented for broad use.
 - Preserve safety behavior around stop operations and dependent container checks.
 - Keep host ports/env vars configurable via `.env` and `.env.example`.
@@ -49,6 +49,7 @@ Docker Compose orchestration, and an optional web control panel.
 3. Add env variables to `.env.example` if needed.
 4. Document usage and service matrix updates in `README.md`.
 5. Add dependency/image attribution in `ATTRIBUTIONS.md`.
+6. Register the service in `control-panel/backend/server.py` (`SERVICE_META`).
 
 ## Attribution policy
 

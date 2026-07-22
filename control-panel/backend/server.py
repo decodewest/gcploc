@@ -28,7 +28,7 @@ SERVICE_META = {
         "container": "fakegcs",
         "port": 4443,
         "profile": "gcs",
-        "quickCmd": "gcploc logs fakegcs",
+        "quickCmd": "gcploc logs gcs",
     },
     "gcploc_cloudtasks": {
         "id": "cloudtasks",
@@ -76,6 +76,17 @@ SERVICE_META = {
 def run_cmd(args: list[str]) -> tuple[int, str]:
     result = subprocess.run(args, capture_output=True, text=True)
     return result.returncode, result.stdout.strip()
+
+
+def run_cmd_merged(args: list[str]) -> tuple[int, str]:
+    """Run a command merging stderr into stdout (needed for `docker logs`)."""
+    result = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    )
+    return result.returncode, (result.stdout or "").rstrip("\n")
 
 
 def parse_status(status: str) -> str:
@@ -151,20 +162,20 @@ def snapshot() -> dict:
 
 def get_container_logs(container_id: str, tail: int = 100) -> tuple[int, str, str]:
     """Fetch logs for a container. Returns (status_code, container_full_name, logs_text)."""
-    # Find full container name from SERVICE_META by container id
     full_name = None
     for fname, meta in SERVICE_META.items():
         if meta["id"] == container_id or meta["container"] == container_id:
             full_name = fname
             break
-    
+
     if not full_name:
         return 404, "", "Container not found"
-    
-    code, output = run_cmd(["docker", "logs", "--tail", str(tail), full_name])
+
+    # `docker logs` writes container stdout/stderr to the process streams; merge both.
+    code, output = run_cmd_merged(["docker", "logs", "--tail", str(tail), full_name])
     if code != 0:
-        return 500, full_name, f"Error fetching logs: {output}"
-    
+        return 500, full_name, f"Error fetching logs: {output or 'unknown error'}"
+
     return 200, full_name, output
 
 

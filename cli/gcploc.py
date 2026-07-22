@@ -15,6 +15,38 @@ from pathlib import Path
 
 import click
 
+COMPOSE_ROOT = Path(__file__).parent.parent.resolve()
+CONTROL_PANEL_DIR = COMPOSE_ROOT / "control-panel"
+CP_BACKEND_PATH = CONTROL_PANEL_DIR / "backend" / "server.py"
+DEFAULT_ALIASES_FILE = COMPOSE_ROOT / ".gcploc.aliases.toml"
+CP_STATE_FILE = COMPOSE_ROOT / ".gcploc.cp.state.json"
+
+
+def _load_dotenv(path: Path) -> None:
+    """Load KEY=VALUE pairs from a Compose-style .env without overriding the process env."""
+    if not path.exists():
+        return
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+
+    for raw in lines:
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        if not key or key in os.environ:
+            continue
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+            value = value[1:-1]
+        os.environ[key] = value
+
+
+_load_dotenv(COMPOSE_ROOT / ".env")
+
 EMULATOR_TARGETS = {"pubsub", "gcs", "cloudtasks", "firestore", "spanner", "bigtable", "secretmanager"}
 VALID_TARGETS = EMULATOR_TARGETS | {"services", "cp"}
 TARGET_TO_COMPOSE_SERVICES = {
@@ -26,6 +58,7 @@ TARGET_TO_COMPOSE_SERVICES = {
     "bigtable": ["bigtable"],
     "secretmanager": ["secretmanager"],
 }
+COMPOSE_SERVICE_NAMES = {name for names in TARGET_TO_COMPOSE_SERVICES.values() for name in names}
 TARGET_TO_HOST_PORT = {
     "pubsub": int(os.getenv("GCPLOC_PUBSUB_HOST_PORT", "8085")),
     "gcs": int(os.getenv("GCPLOC_GCS_HOST_PORT", "4443")),
@@ -37,12 +70,6 @@ TARGET_TO_HOST_PORT = {
 }
 
 GCPLOC_CP_URL = os.getenv("GCPLOC_CP_URL", "http://localhost:5173")
-
-COMPOSE_ROOT = Path(__file__).parent.parent.resolve()
-CONTROL_PANEL_DIR = COMPOSE_ROOT / "control-panel"
-CP_BACKEND_PATH = CONTROL_PANEL_DIR / "backend" / "server.py"
-DEFAULT_ALIASES_FILE = COMPOSE_ROOT / ".gcploc.aliases.toml"
-CP_STATE_FILE = COMPOSE_ROOT / ".gcploc.cp.state.json"
 
 
 def _section(title: str):
@@ -121,6 +148,20 @@ def _expand_emulator_targets(targets: list[str]) -> list[str]:
         elif target in EMULATOR_TARGETS:
             expanded.add(target)
     return sorted(expanded)
+
+
+def _resolve_compose_service(service: str) -> str:
+    """Map a logical target (e.g. gcs) or compose name (e.g. fakegcs) to a compose service."""
+    key = service.strip().lower()
+    if key in TARGET_TO_COMPOSE_SERVICES:
+        return TARGET_TO_COMPOSE_SERVICES[key][0]
+    if key in COMPOSE_SERVICE_NAMES:
+        return key
+    valid = sorted(EMULATOR_TARGETS | COMPOSE_SERVICE_NAMES)
+    raise click.UsageError(
+        f"Unknown service '{service}'. "
+        f"Use a target or compose name: {', '.join(valid)}."
+    )
 
 
 def _run_compose(args: list[str], profiles: list[str] | None = None, **kwargs):
@@ -528,13 +569,14 @@ def ports_cmd():
 def logs(service: str | None, follow: bool, tail: str):
     """Show logs for emulator services.
 
-    SERVICE: pubsub, fakegcs, cloudtasks (optional; shows all if omitted)
+    SERVICE: logical target (gcs, pubsub, …) or compose name (fakegcs, …).
+    Omit to show all running emulator services.
     """
     args = ["logs", f"--tail={tail}"]
     if follow:
         args.append("-f")
     if service:
-        args.append(service)
+        args.append(_resolve_compose_service(service))
     _run_compose(args)
 
 
