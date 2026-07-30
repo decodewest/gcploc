@@ -42,7 +42,7 @@ Docker Compose orchestration, and an optional web control panel.
 - Preserve safety behavior around stop operations and dependent-container checks.
 - Keep host ports/env vars configurable via `.env` and `.env.example`.
 - Update docs when commands, profiles, or environment variables change.
-- Control panel stays observation-only (status, logs, inspect); no start/stop or resource mutation from the UI.
+- Control panel defaults to observation (status, logs, inspect). Scoped manage actions are allowed only for registered manageable services, with type-to-confirm for destructive ops. No start/stop from the UI.
 
 ## Adding a new emulator service
 

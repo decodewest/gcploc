@@ -211,6 +211,22 @@ function App() {
     };
   }, []);
 
+  const statusRank: Record<ServiceStatus, number> = {
+    running: 0,
+    degraded: 1,
+    stopped: 2,
+  };
+
+  const sortedServices = useMemo(() => {
+    return [...services].sort((a, b) => {
+      const rankDiff = statusRank[a.status] - statusRank[b.status];
+      if (rankDiff !== 0) {
+        return rankDiff;
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }, [services]);
+
   const runningCount = useMemo(() => services.filter((service) => service.status === "running").length, [services]);
 
   const toggleTheme = () => {
@@ -257,52 +273,79 @@ function App() {
           />
         </section>
 
-        <section className="space-y-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Emulator services</h2>
-            <p className="text-sm text-muted-foreground">
-              Compose-managed emulator containers with live summaries and resource usage when running.
-            </p>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {services.map((service) => {
-              const canInspect = INSPECTABLE_IDS.has(service.id);
-              const actionsDisabled = service.status === "stopped";
-              const summaryLine = buildServiceSummaryLine(service, summaries, dockerStats);
+        <section className="space-y-6 lg:grid lg:grid-cols-3 lg:items-start lg:gap-6">
+          <section className="space-y-3 lg:order-2 lg:col-span-1 lg:sticky lg:top-4">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">Connected clients</h2>
+              <p className="text-sm text-muted-foreground">
+                Non-gcploc containers currently attached to gcploc_net (discovered; not hard-coded).
+              </p>
+            </div>
+            <Card className="border-border/80">
+              <CardHeader>
+                <CardTitle>Network attachments</CardTitle>
+                <CardDescription>Peers sharing the emulator network right now.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                <div className="flex flex-wrap gap-2">
+                  {dependents.length === 0 ? (
+                    <span className="text-muted-foreground">None attached</span>
+                  ) : (
+                    dependents.map((name) => (
+                      <Badge key={name} variant="outline">
+                        {name}
+                      </Badge>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Last updated: {lastUpdated ? new Date(lastUpdated * 1000).toLocaleTimeString() : "pending"}
+                </p>
+                <div className="space-y-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Stop confirmation preview
+                  </p>
+                  <div className="rounded-lg border border-border/80 bg-muted/60 p-3 font-mono text-xs leading-relaxed">
+                    [gcploc] Warning: containers currently attached to gcploc_net were detected:{"\n"}
+                    {dependents.length === 0 ? "- none" : dependents.map((name) => `- ${name}`).join("\n")}
+                    {"\n"}
+                    Proceed and stop emulator services? [y/N]
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </section>
 
-              return (
-                <Card key={service.id} className="border-border/80">
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-3">
-                      <CardTitle>{service.label}</CardTitle>
-                      <Badge variant={statusToBadgeVariant[service.status]}>{statusLabel[service.status]}</Badge>
-                    </div>
-                    <CardDescription>Container: {service.container}</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <Row label="Profile" value={service.profile} />
-                    <Row label="Endpoint" value={`${service.container}:${service.port}`} />
-                    <p className="truncate text-xs text-muted-foreground" title={summaryLine}>
-                      {summaryLine}
-                    </p>
-                  </CardContent>
-                  <CardFooter className="flex flex-row gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 justify-start"
-                      disabled={actionsDisabled}
-                      title={
-                        actionsDisabled
-                          ? "Start this service to view container logs"
-                          : "View container logs"
-                      }
-                      onClick={() => setSelectedServiceId(service.id)}
-                    >
-                      <TerminalSquare className="mr-2 h-4 w-4" />
-                      View logs
-                    </Button>
-                    {canInspect ? (
+          <section className="space-y-3 lg:order-1 lg:col-span-2">
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">Emulator services</h2>
+              <p className="text-sm text-muted-foreground">
+                Compose-managed emulator containers with live summaries and resource usage when running.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {sortedServices.map((service) => {
+                const canInspect = INSPECTABLE_IDS.has(service.id);
+                const actionsDisabled = service.status === "stopped";
+                const summaryLine = buildServiceSummaryLine(service, summaries, dockerStats);
+
+                return (
+                  <Card key={service.id} className="border-border/80">
+                    <CardHeader>
+                      <div className="flex items-center justify-between gap-3">
+                        <CardTitle>{service.label}</CardTitle>
+                        <Badge variant={statusToBadgeVariant[service.status]}>{statusLabel[service.status]}</Badge>
+                      </div>
+                      <CardDescription>Container: {service.container}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <Row label="Profile" value={service.profile} />
+                      <Row label="Endpoint" value={`${service.container}:${service.port}`} />
+                      <p className="truncate text-xs text-muted-foreground" title={summaryLine}>
+                        {summaryLine}
+                      </p>
+                    </CardContent>
+                    <CardFooter className="flex flex-row gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -310,62 +353,37 @@ function App() {
                         disabled={actionsDisabled}
                         title={
                           actionsDisabled
-                            ? "Start this service to inspect resources"
-                            : "Inspect emulator resources (observation only)"
+                            ? "Start this service to view container logs"
+                            : "View container logs"
                         }
-                        onClick={() => setInspectServiceId(service.id as InspectableServiceId)}
+                        onClick={() => setSelectedServiceId(service.id)}
                       >
-                        <Eye className="mr-2 h-4 w-4" />
-                        Inspect
+                        <TerminalSquare className="mr-2 h-4 w-4" />
+                        View logs
                       </Button>
-                    ) : null}
-                  </CardFooter>
-                </Card>
-              );
-            })}
-          </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="space-y-1">
-            <h2 className="text-lg font-semibold">Connected clients</h2>
-            <p className="text-sm text-muted-foreground">
-              Non-gcploc containers currently attached to gcploc_net (discovered; not hard-coded).
-            </p>
-          </div>
-          <Card className="border-border/80">
-          <CardHeader>
-            <CardTitle>Network attachments</CardTitle>
-            <CardDescription>Peers sharing the emulator network right now.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex flex-wrap gap-2">
-              {dependents.length === 0 ? (
-                <span className="text-muted-foreground">None attached</span>
-              ) : (
-                dependents.map((name) => (
-                  <Badge key={name} variant="outline">
-                    {name}
-                  </Badge>
-                ))
-              )}
+                      {canInspect ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 justify-start"
+                          disabled={actionsDisabled}
+                          title={
+                            actionsDisabled
+                              ? "Start this service to inspect or manage resources"
+                              : "Inspect or manage emulator resources"
+                          }
+                          onClick={() => setInspectServiceId(service.id as InspectableServiceId)}
+                        >
+                          <Eye className="mr-2 h-4 w-4" />
+                          Inspect
+                        </Button>
+                      ) : null}
+                    </CardFooter>
+                  </Card>
+                );
+              })}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Last updated: {lastUpdated ? new Date(lastUpdated * 1000).toLocaleTimeString() : "pending"}
-            </p>
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Stop confirmation preview
-              </p>
-              <div className="rounded-lg border border-border/80 bg-muted/60 p-3 font-mono text-xs leading-relaxed">
-                [gcploc] Warning: containers currently attached to gcploc_net were detected:{"\n"}
-                {dependents.length === 0 ? "- none" : dependents.map((name) => `- ${name}`).join("\n")}
-                {"\n"}
-                Proceed and stop emulator services? [y/N]
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+          </section>
         </section>
       </div>
 

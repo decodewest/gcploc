@@ -1,6 +1,6 @@
 # gcploc Constitution
 
-Version: 1.0.0 | Ratified: 2026-07-30
+Version: 1.1.0 | Amended: 2026-07-30
 
 This document is the primary governance veto for humans and AI agents working in
 this repository. It adapts transferable engineering discipline from sibling
@@ -9,8 +9,8 @@ product workspaces into language appropriate for a public, standalone tool.
 ## I. Purpose
 
 gcploc is a shared local GCP emulator stack: a Python CLI, Docker Compose
-orchestration, and an optional web control panel for observation. It is MIT
-licensed, reusable across projects, and not a product SaaS.
+orchestration, and an optional web control panel for observation and scoped local
+management. It is MIT licensed, reusable across projects, and not a product SaaS.
 
 ## II. Core Principles
 
@@ -27,13 +27,17 @@ internal monorepo paths, or business terms into committed files.
 ### 3. Explicit scope and exit criteria
 
 Ship observation and orchestration features with clear non-goals. Silent scope
-creep (management UIs, tenant admin, usage-attribution charts) is a defect.
+creep (broad management UIs, tenant admin, usage-attribution charts) is a defect.
+Scoped local emulator management registered in the control panel backend is in
+scope when it follows Section V.
 
-### 4. Observation over management in the control panel
+### 4. Observation default; scoped management in the control panel
 
-The control panel is read-oriented: Docker status, logs, discovered network
-clients, and optional emulator resource inspect. Start/stop/create/delete remain
-CLI responsibilities.
+The control panel defaults to read-oriented behavior: Docker status, logs,
+discovered network clients, and emulator resource inspect. Start/stop of
+containers remains a CLI responsibility. For registered manageable services only,
+the panel may expose local-only create/update/delete against emulators, with
+type-to-confirm for destructive operations.
 
 ### 5. Safety and honesty
 
@@ -84,14 +88,19 @@ repository root. gcploc remains independently governable when published alone.
 
 ## V. Control panel constraints
 
-1. Two information categories: **Emulator services** (owned by gcploc) and
-   **Connected clients** (discovered peers on `gcploc_net`).
+1. Two peer information categories with equal dashboard visibility: **Emulator
+   services** (owned by gcploc) and **Connected clients** (discovered peers on
+   `gcploc_net`).
 2. Glanceable running-only summary stats (resource inventory and/or aggregate
-   Docker CPU/memory) stay on a single muted line per card.
-3. **Inspect** is disabled when the emulator is stopped; **View logs** remains
-   available (Docker logs work after stop).
-4. No user/tenant administration, impersonation, or resource mutation from the UI.
-5. Per-client traffic attribution charts and time-series stores are out of scope
+   Docker CPU/memory) stay on a single muted line per service card.
+3. **View logs** and **Inspect** are disabled when the emulator is stopped.
+4. **Manageable services** (currently Fake GCS, Pub/Sub, Cloud Tasks) support
+   scoped local-only management actions registered in the backend. Destructive
+   actions require type-to-confirm in the UI. Other emulators remain
+   observe-only until explicitly registered.
+5. No user/tenant administration, impersonation, or cross-tenant operations from
+   the UI.
+6. Per-client traffic attribution charts and time-series stores are out of scope
    unless a future amendment explicitly expands this section.
 
 ## VI. Adding an emulator service
@@ -108,7 +117,8 @@ repository root. gcploc remains independently governable when published alone.
 - This constitution has veto power over plans and implementations in this repo.
 - Amendments bump the version footer and note the change date.
 - Agents and humans are expected to comply; conflicts with convenience defaults
-  resolve in favor of independence, safety, and observation-only UI scope.
+  resolve in favor of independence, safety, and scoped local management rules.
 
-**Version:** 1.0.0 — Initial constitution (independence, Speckit non-adoption,
-control-panel observation rules).
+**Version:** 1.1.0 — Scoped local manage in control panel (registered services,
+confirmations, CLI remains primary for start/stop); dual-pane dashboard parity for
+services and connected clients.

@@ -62,9 +62,9 @@ Open `http://localhost:5173` in your browser.
 
 The dashboard uses SSE (`/api/events`) for near real-time updates, falls back to `/api/status` every 30s, and serves container logs via `/api/logs/{serviceId}`.
 
-The main view is split into **Emulator services** (status cards with docker CPU/memory snippets and emulator summaries) and **Connected clients** (other containers on `gcploc_net`, plus a stop-confirmation preview).
+The dashboard uses a dual-pane layout on large screens: **Emulator services** (two-column card grid with docker CPU/memory snippets and emulator summaries) and **Connected clients** (sticky sidebar with containers on `gcploc_net`, plus a stop-confirmation preview). On mobile, connected clients appear first.
 
-For Fake GCS, Pub/Sub, and Cloud Tasks, use **Inspect** on a running service to browse observation APIs (`/api/observe/gcs`, `/api/observe/pubsub`, `/api/observe/cloudtasks`). The UI remains read-oriented: no start/stop or resource mutations from the panel.
+For Fake GCS, Pub/Sub, and Cloud Tasks, open **Inspect** on a running service. The **Observe** tab calls read APIs (`/api/observe/gcs`, `/api/observe/pubsub`, `/api/observe/cloudtasks`). The **Manage** tab runs scoped local actions via `GET /api/manage/capabilities` and `POST /api/manage/{serviceId}/{action}` (409 when the emulator is stopped). Destructive actions require typing the resource name in the UI. Start/stop containers stays CLI-only; manage never targets cloud APIs.
 
 ## Usage
 

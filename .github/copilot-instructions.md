@@ -49,4 +49,4 @@ Governance: follow [`CONSTITUTION.md`](../CONSTITUTION.md) (veto over plans/impl
 - Do not hardcode local paths or secrets.
 - Keep command names centered on `services` and `cp`.
 - CLI `logs` and the control panel must accept logical service targets (e.g. `gcs`), not only compose names.
-- Control panel is observation-only: status, logs, connected clients, resource inspect — no start/stop or mutations from the UI.
+- Control panel: observation by default (status, logs, connected clients, resource inspect). Scoped local manage for registered GCS/Pub/Sub/Cloud Tasks with confirmations; no start/stop from the UI.

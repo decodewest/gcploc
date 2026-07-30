@@ -9,6 +9,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import manage
 import observe
 
 HOST = "127.0.0.1"
@@ -162,6 +163,13 @@ def _running_inspectable_ids(services: list[dict]) -> set[str]:
     }
 
 
+def _service_running(service_id: str) -> bool:
+    for service in get_gcploc_services():
+        if service.get("id") == service_id:
+            return service.get("status") == "running"
+    return False
+
+
 def snapshot() -> dict:
     services = get_gcploc_services()
     id_to_full = {meta["id"]: full for full, meta in SERVICE_META.items()}
@@ -224,6 +232,19 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _read_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        if length <= 0:
+            return {}
+        raw = self.rfile.read(length)
+        if not raw:
+            return {}
+        try:
+            parsed = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
@@ -242,6 +263,10 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/observe/summaries":
             self._json(200, _observe_summaries_payload())
+            return
+
+        if path == "/api/manage/capabilities":
+            self._json(200, manage.capabilities())
             return
 
         if path == "/api/observe/gcs":
@@ -269,6 +294,39 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         self._json(404, {"error": "not found"})
+
+    def do_POST(self):
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if path.startswith("/api/manage/"):
+            self._handle_manage_post(parsed)
+            return
+
+        self._json(404, {"error": "not found"})
+
+    def _handle_manage_post(self, parsed: urllib.parse.ParseResult):
+        parts = [p for p in parsed.path.strip("/").split("/") if p]
+        # api, manage, {serviceId}, {action}
+        if len(parts) < 4 or parts[0] != "api" or parts[1] != "manage":
+            self._json(400, {"error": "invalid manage path"})
+            return
+
+        service_id = urllib.parse.unquote(parts[2])
+        action = urllib.parse.unquote(parts[3])
+        payload = self._read_json_body()
+
+        if service_id not in manage.MANAGEABLE_IDS:
+            self._json(404, {"ok": False, "error": "Service is not manageable"})
+            return
+
+        if not _service_running(service_id):
+            self._json(409, {"ok": False, "error": "Service is not running"})
+            return
+
+        result = manage.invoke(service_id, action, payload)
+        status = 200 if result.get("ok") else 400
+        self._json(status, result)
 
     def _handle_logs(self, parsed: urllib.parse.ParseResult):
         path_parts = parsed.path.strip("/").split("/")

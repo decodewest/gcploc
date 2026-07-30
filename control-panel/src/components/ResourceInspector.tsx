@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, Folder, Loader2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ManagePanel } from "@/components/manage/ManagePanel";
 
 export type InspectableServiceId = "gcs" | "pubsub" | "cloudtasks";
 
@@ -96,7 +98,7 @@ function formatBytes(value: string | number | undefined): string {
   return `${(n / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
-function GcsInspector() {
+function GcsInspector({ reloadToken }: { reloadToken: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [buckets, setBuckets] = useState<string[]>([]);
@@ -150,7 +152,7 @@ function GcsInspector() {
     setPrefix("");
     setObjects([]);
     setFolderPrefixes([]);
-  }, [loadBuckets]);
+  }, [loadBuckets, reloadToken]);
 
   const breadcrumbParts = useMemo(() => {
     if (!selectedBucket) {
@@ -287,7 +289,7 @@ function GcsInspector() {
   );
 }
 
-function PubSubInspector() {
+function PubSubInspector({ reloadToken }: { reloadToken: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [topics, setTopics] = useState<string[]>([]);
@@ -317,7 +319,7 @@ function PubSubInspector() {
       }
     };
     void load();
-  }, []);
+  }, [reloadToken]);
 
   const subsByTopic = useMemo(() => {
     const map = new Map<string, string[]>();
@@ -400,7 +402,7 @@ function PubSubInspector() {
   );
 }
 
-function CloudTasksInspector() {
+function CloudTasksInspector({ reloadToken }: { reloadToken: number }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [queues, setQueues] = useState<CloudQueueRow[]>([]);
@@ -427,7 +429,7 @@ function CloudTasksInspector() {
       }
     };
     void load();
-  }, []);
+  }, [reloadToken]);
 
   return (
     <div className="space-y-3 text-sm">
@@ -508,19 +510,63 @@ function CloudTasksInspector() {
   );
 }
 
+type InspectorTab = "observe" | "manage";
+
 export function ResourceInspector({ serviceId, serviceName, isOpen, onClose }: ResourceInspectorProps) {
+  const [tab, setTab] = React.useState<InspectorTab>("observe");
+  const [observeReloadToken, setObserveReloadToken] = React.useState(0);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setTab("observe");
+    }
+  }, [isOpen, serviceId]);
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col">
         <DialogHeader>
-          <DialogTitle>{serviceName} — Inspect</DialogTitle>
-          <DialogDescription>Observation only. No create, update, or delete actions.</DialogDescription>
+          <DialogTitle>{serviceName} — Emulator panel</DialogTitle>
+          <DialogDescription>
+            Observe resources or run scoped local manage actions (registered services only).
+          </DialogDescription>
         </DialogHeader>
 
+        <div className="flex gap-2 border-b border-border/60 pb-2">
+          <Button
+            type="button"
+            size="sm"
+            variant={tab === "observe" ? "default" : "outline"}
+            onClick={() => setTab("observe")}
+          >
+            Observe
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant={tab === "manage" ? "default" : "outline"}
+            onClick={() => setTab("manage")}
+          >
+            Manage
+          </Button>
+        </div>
+
         <div className="min-h-0 flex-1 overflow-auto pr-1">
-          {serviceId === "gcs" ? <GcsInspector /> : null}
-          {serviceId === "pubsub" ? <PubSubInspector /> : null}
-          {serviceId === "cloudtasks" ? <CloudTasksInspector /> : null}
+          {tab === "observe" && serviceId === "gcs" ? (
+            <GcsInspector reloadToken={observeReloadToken} />
+          ) : null}
+          {tab === "observe" && serviceId === "pubsub" ? (
+            <PubSubInspector reloadToken={observeReloadToken} />
+          ) : null}
+          {tab === "observe" && serviceId === "cloudtasks" ? (
+            <CloudTasksInspector reloadToken={observeReloadToken} />
+          ) : null}
+          {tab === "manage" && serviceId ? (
+            <ManagePanel
+              serviceId={serviceId}
+              onActionSuccess={() => setObserveReloadToken((t) => t + 1)}
+            />
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>
