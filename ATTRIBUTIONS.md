@@ -79,6 +79,15 @@ images are bundled into or distributed alongside gcploc.
 
 ---
 
+### google-cloud-tasks (optional)
+- **Package:** `google-cloud-tasks`, `grpcio`
+- **Publisher:** Google LLC / gRPC contributors
+- **License:** Apache 2.0
+- **Source:** <https://github.com/googleapis/python-tasks>
+- **Notes:** Optional Python dependencies for the control panel backend when listing Cloud Tasks queues and tasks via `/api/observe/cloudtasks`. Without them, the backend falls back to seeded queue names.
+
+---
+
 ## Control Panel — Frontend
 
 ### React

@@ -9,6 +9,8 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import observe
+
 HOST = "127.0.0.1"
 PORT = 8787
 
@@ -152,11 +154,31 @@ def get_dependents() -> list[str]:
     return sorted(name for name in names if name not in gcploc_names)
 
 
+def _running_inspectable_ids(services: list[dict]) -> set[str]:
+    return {
+        s["id"]
+        for s in services
+        if s.get("status") == "running" and s.get("id") in observe.INSPECTABLE_IDS
+    }
+
+
 def snapshot() -> dict:
+    services = get_gcploc_services()
+    id_to_full = {meta["id"]: full for full, meta in SERVICE_META.items()}
+    running_full = [
+        id_to_full[s["id"]]
+        for s in services
+        if s.get("status") == "running" and s.get("id") in id_to_full
+    ]
+    docker_stats = observe.get_docker_stats(running_full)
+    running_ids = _running_inspectable_ids(services)
+    summaries = observe.observe_summaries(running_ids)
     return {
         "timestamp": int(time.time()),
-        "services": get_gcploc_services(),
+        "services": services,
         "dependents": get_dependents(),
+        "dockerStats": docker_stats,
+        "summaries": summaries,
     }
 
 
@@ -171,12 +193,25 @@ def get_container_logs(container_id: str, tail: int = 100) -> tuple[int, str, st
     if not full_name:
         return 404, "", "Container not found"
 
-    # `docker logs` writes container stdout/stderr to the process streams; merge both.
     code, output = run_cmd_merged(["docker", "logs", "--tail", str(tail), full_name])
     if code != 0:
         return 500, full_name, f"Error fetching logs: {output or 'unknown error'}"
 
     return 200, full_name, output
+
+
+def _query_flag(params: dict[str, list[str]], name: str) -> bool:
+    raw = params.get(name, [""])[0].strip().lower()
+    return raw in ("1", "true", "yes", "on")
+
+
+def _observe_summaries_payload() -> dict:
+    services = get_gcploc_services()
+    running_ids = _running_inspectable_ids(services)
+    return {
+        "timestamp": int(time.time()),
+        "summaries": observe.observe_summaries(running_ids),
+    }
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -190,47 +225,71 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
-        if self.path == "/health":
+        parsed = urllib.parse.urlparse(self.path)
+        path = parsed.path
+
+        if path == "/health":
             self._json(200, {"ok": True})
             return
 
-        if self.path == "/api/status":
+        if path == "/api/status":
             self._json(200, snapshot())
             return
 
-        if self.path == "/api/events":
+        if path == "/api/events":
             self._stream_events()
             return
 
-        # Handle /api/logs/{container_id}
-        if self.path.startswith("/api/logs/"):
-            self._handle_logs()
+        if path == "/api/observe/summaries":
+            self._json(200, _observe_summaries_payload())
+            return
+
+        if path == "/api/observe/gcs":
+            params = urllib.parse.parse_qs(parsed.query)
+            summary = _query_flag(params, "summary")
+            bucket = params.get("bucket", [""])[0].strip() or None
+            prefix = params.get("prefix", [""])[0]
+            self._json(200, observe.observe_gcs(bucket=bucket, prefix=prefix, summary=summary))
+            return
+
+        if path == "/api/observe/pubsub":
+            params = urllib.parse.parse_qs(parsed.query)
+            summary = _query_flag(params, "summary")
+            self._json(200, observe.observe_pubsub(summary=summary))
+            return
+
+        if path == "/api/observe/cloudtasks":
+            params = urllib.parse.parse_qs(parsed.query)
+            summary = _query_flag(params, "summary")
+            self._json(200, observe.observe_cloudtasks(summary=summary))
+            return
+
+        if path.startswith("/api/logs/"):
+            self._handle_logs(parsed)
             return
 
         self._json(404, {"error": "not found"})
 
-    def _handle_logs(self):
-        # Parse path: /api/logs/{container_id}?tail=100
-        parsed_url = urllib.parse.urlparse(self.path)
-        path_parts = parsed_url.path.strip("/").split("/")
+    def _handle_logs(self, parsed: urllib.parse.ParseResult):
+        path_parts = parsed.path.strip("/").split("/")
         if len(path_parts) < 3:
             self._json(400, {"error": "invalid path"})
             return
-        
-        container_id = urllib.parse.unquote(path_parts[2])
-        
-        # Parse query params
-        params = urllib.parse.parse_qs(parsed_url.query)
-        tail = int(params.get("tail", ["100"])[0])
-        
-        status_code, container_name, logs = get_container_logs(container_id, tail)
-        self._json(status_code, {
-            "containerId": container_id,
-            "containerName": container_name,
-            "logs": logs,
-            "timestamp": int(time.time()),
-        })
 
+        container_id = urllib.parse.unquote(path_parts[2])
+        params = urllib.parse.parse_qs(parsed.query)
+        tail = int(params.get("tail", ["100"])[0])
+
+        status_code, container_name, logs = get_container_logs(container_id, tail)
+        self._json(
+            status_code,
+            {
+                "containerId": container_id,
+                "containerName": container_name,
+                "logs": logs,
+                "timestamp": int(time.time()),
+            },
+        )
 
     def _stream_events(self):
         self.send_response(200)
@@ -298,6 +357,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
+    observe.load_dotenv()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"[gcploc-ui-api] Listening on http://{HOST}:{PORT}")
     server.serve_forever()

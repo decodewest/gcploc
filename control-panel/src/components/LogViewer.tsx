@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Copy, Loader2, X } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -49,12 +49,7 @@ export function LogViewer({ serviceId, serviceName, isOpen, onClose }: LogViewer
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <div className="flex items-center justify-between w-full">
-            <DialogTitle>{serviceName} — Logs</DialogTitle>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
+          <DialogTitle>{serviceName} — Logs</DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-hidden flex flex-col gap-3">

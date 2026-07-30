@@ -1,11 +1,11 @@
 # AGENTS.md
 
-## Artemis governance
+## Governance
 
-Before non-trivial changes: read the shared Artemis constitution at
-`../govern/.specify/memory/constitution.md` (veto power over plans/tasks).
-Write authority ends at this repo root — do not edit sibling Artemis repos in this session.
-Archives under `../docs/archives/` are out-of-band (human-EM gate).
+Before non-trivial changes: read [`CONSTITUTION.md`](./CONSTITUTION.md)
+(veto power over plans and implementations in this repository).
+Write authority ends at this repo root — do not edit sibling product repos in
+this session.
 
 ## Project purpose
 
@@ -32,15 +32,17 @@ Docker Compose orchestration, and an optional web control panel.
 - Runtime defaults and env contract: `.env.example`
 - Control panel frontend/backend: `control-panel/`
 - Dependency/legal credits: `ATTRIBUTIONS.md`
+- Governance: `CONSTITUTION.md`
 
 ## Contribution guardrails
 
 - Keep the repository generic and reusable; avoid project-specific names and business terms in committed files.
 - Local aliases stay private: `.gcploc.aliases.toml` is gitignored. Ship only generic placeholders in `.gcploc.aliases.example.toml`.
 - New emulator services must be configurable and documented for broad use.
-- Preserve safety behavior around stop operations and dependent container checks.
+- Preserve safety behavior around stop operations and dependent-container checks.
 - Keep host ports/env vars configurable via `.env` and `.env.example`.
 - Update docs when commands, profiles, or environment variables change.
+- Control panel stays observation-only (status, logs, inspect); no start/stop or resource mutation from the UI.
 
 ## Adding a new emulator service
 

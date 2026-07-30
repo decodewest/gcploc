@@ -1,5 +1,7 @@
 # Copilot Instructions for gcploc
 
+Governance: follow [`CONSTITUTION.md`](../CONSTITUTION.md) (veto over plans/implementations).
+
 ## Build, run, test commands
 
 - Create env + install CLI:
@@ -47,3 +49,4 @@
 - Do not hardcode local paths or secrets.
 - Keep command names centered on `services` and `cp`.
 - CLI `logs` and the control panel must accept logical service targets (e.g. `gcs`), not only compose names.
+- Control panel is observation-only: status, logs, connected clients, resource inspect — no start/stop or mutations from the UI.

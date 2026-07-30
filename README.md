@@ -62,7 +62,9 @@ Open `http://localhost:5173` in your browser.
 
 The dashboard uses SSE (`/api/events`) for near real-time updates, falls back to `/api/status` every 30s, and serves container logs via `/api/logs/{serviceId}`.
 
-The control panel is intentionally read-oriented: live status, dependents on `gcploc_net`, and per-service log viewing.
+The main view is split into **Emulator services** (status cards with docker CPU/memory snippets and emulator summaries) and **Connected clients** (other containers on `gcploc_net`, plus a stop-confirmation preview).
+
+For Fake GCS, Pub/Sub, and Cloud Tasks, use **Inspect** on a running service to browse observation APIs (`/api/observe/gcs`, `/api/observe/pubsub`, `/api/observe/cloudtasks`). The UI remains read-oriented: no start/stop or resource mutations from the panel.
 
 ## Usage
 
