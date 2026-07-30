@@ -4,6 +4,7 @@
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -231,6 +232,16 @@ def _cp_running() -> bool:
     return _pid_running(backend_pid) or _pid_running(frontend_pid)
 
 
+def _resolve_executable(name: str) -> str:
+    """Resolve a PATH executable in a cross-platform way (e.g. npm.cmd on Windows)."""
+    resolved = shutil.which(name)
+    if not resolved:
+        raise click.ClickException(
+            f"{name} was not found on PATH. Install it and ensure it is available in this shell."
+        )
+    return resolved
+
+
 def _start_control_panel():
     if not CONTROL_PANEL_DIR.exists():
         raise click.ClickException("control-panel directory not found.")
@@ -241,10 +252,11 @@ def _start_control_panel():
         _ok(f"Control panel already running at {GCPLOC_CP_URL}")
         return
 
+    npm = _resolve_executable("npm")
     node_modules = CONTROL_PANEL_DIR / "node_modules"
     if not node_modules.exists():
         _info("Installing control panel dependencies")
-        install_result = subprocess.run(["npm", "install"], cwd=CONTROL_PANEL_DIR)
+        install_result = subprocess.run([npm, "install"], cwd=CONTROL_PANEL_DIR)
         if install_result.returncode != 0:
             raise click.ClickException("Failed to install control panel dependencies.")
 
@@ -259,7 +271,7 @@ def _start_control_panel():
 
     _info("Starting control panel frontend")
     frontend_proc = subprocess.Popen(
-        ["npm", "run", "dev"],
+        [npm, "run", "dev"],
         cwd=CONTROL_PANEL_DIR,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
