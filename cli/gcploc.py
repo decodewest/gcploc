@@ -261,21 +261,31 @@ def _start_control_panel():
             raise click.ClickException("Failed to install control panel dependencies.")
 
     _info("Starting control panel backend")
+    cp_popen_kwargs: dict = {
+        "stdin": subprocess.DEVNULL,
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "start_new_session": True,
+    }
+    if os.name == "nt":
+        cp_popen_kwargs["creationflags"] = getattr(
+            subprocess, "CREATE_NEW_PROCESS_GROUP", 0x00000200
+        ) | getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
+        # start_new_session already maps to CREATE_NEW_PROCESS_GROUP on Windows;
+        # keep creationflags explicit and avoid double-setting via start_new_session.
+        cp_popen_kwargs.pop("start_new_session", None)
+
     backend_proc = subprocess.Popen(
         [sys.executable, str(CP_BACKEND_PATH)],
         cwd=COMPOSE_ROOT,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+        **cp_popen_kwargs,
     )
 
     _info("Starting control panel frontend")
     frontend_proc = subprocess.Popen(
         [npm, "run", "dev"],
         cwd=CONTROL_PANEL_DIR,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
+        **cp_popen_kwargs,
     )
 
     _save_cp_state(
