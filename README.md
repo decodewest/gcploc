@@ -134,7 +134,18 @@ full = ["services", "cp"]
 
 ## Connecting applications
 
-Each application Docker Compose should declare `gcploc_net` as an external network. Run `gcploc start <service>` before starting your app stack.
+Each application Docker Compose should declare `gcploc_net` as an external network.
+
+Product CLIs can start this compose project without the `gcploc` binary:
+
+```bash
+mars up --with-gcploc
+bamboo up --with-gcploc --with-stripe
+```
+
+That uses this repo's `docker-compose.yml` and project name `gcploc` (pubsub, gcs, cloudtasks). `mars down` / `bamboo down` do **not** stop emulators unless you pass `--with-gcploc`, and that stop is skipped while another product is still attached to `gcploc_net`.
+
+`gcploc start <service>` remains valid for control panel, extra emulators, or machines that already have the gcploc CLI on PATH.
 
 ### Container hostnames
 

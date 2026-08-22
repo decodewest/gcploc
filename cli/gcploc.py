@@ -248,9 +248,13 @@ def _start_control_panel():
     if not CP_BACKEND_PATH.exists():
         raise click.ClickException("control-panel backend server not found.")
 
-    if _cp_running() or _url_reachable(GCPLOC_CP_URL):
+    if _url_reachable(GCPLOC_CP_URL):
         _ok(f"Control panel already running at {GCPLOC_CP_URL}")
         return
+
+    if _cp_running():
+        _info("Control panel processes are stale (UI not reachable); restarting")
+        _stop_control_panel()
 
     npm = _resolve_executable("npm")
     node_modules = CONTROL_PANEL_DIR / "node_modules"

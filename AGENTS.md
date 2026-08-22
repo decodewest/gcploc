@@ -23,6 +23,7 @@ Docker Compose orchestration, and an optional web control panel.
 - Stop only services: `gcploc stop services`
 - Stop only control panel: `gcploc stop cp`
 - Health diagnostics: `gcploc doctor`
+- Product CLIs may start this compose project without this binary: `mars up --with-gcploc`, `bamboo up --with-gcploc`. Those CLIs must not `down` gcploc unless `--with-gcploc` is passed, and must skip that stop while another product is on `gcploc_net`.
 
 ## Architecture map
 
@@ -37,6 +38,7 @@ Docker Compose orchestration, and an optional web control panel.
 ## Contribution guardrails
 
 - Keep the repository generic and reusable; avoid project-specific names and business terms in committed files.
+- This stack is **GCP emulators only**. Do not add third-party SaaS HTTP twins (payments, market-data vendors, identity providers, etc.); those belong to the consuming product's CLI/compose.
 - Local aliases stay private: `.gcploc.aliases.toml` is gitignored. Ship only generic placeholders in `.gcploc.aliases.example.toml`.
 - New emulator services must be configurable and documented for broad use.
 - Preserve safety behavior around stop operations and dependent-container checks.
