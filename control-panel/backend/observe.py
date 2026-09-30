@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Any
 
 HTTP_TIMEOUT_SEC = 2.0
+# Cloud Tasks ListTasks returns the whole queue in one message. The emulator
+# ignores page size, so a shelf backlog exceeds gRPC's 4MB default.
+GRPC_MAX_MESSAGE_BYTES = 32 * 1024 * 1024
 
 INSPECTABLE_IDS = frozenset({"gcs", "pubsub", "cloudtasks"})
 
@@ -79,6 +82,21 @@ def pubsub_host_port() -> int:
 
 def cloudtasks_host_port() -> int:
     return _env_int("GCPLOC_CLOUDTASKS_HOST_PORT", 8123)
+
+
+def cloudtasks_channel(port: int | None = None):
+    """gRPC channel to the local Cloud Tasks emulator."""
+    import grpc
+
+    if port is None:
+        port = cloudtasks_host_port()
+    return grpc.insecure_channel(
+        f"127.0.0.1:{port}",
+        options=[
+            ("grpc.max_receive_message_length", GRPC_MAX_MESSAGE_BYTES),
+            ("grpc.max_send_message_length", GRPC_MAX_MESSAGE_BYTES),
+        ],
+    )
 
 
 def http_json(url: str, timeout: float = HTTP_TIMEOUT_SEC) -> tuple[bool, Any, str | None]:
@@ -297,7 +315,6 @@ def observe_cloudtasks(summary: bool = False) -> dict[str, Any]:
     parent = f"projects/{pid}/locations/{location}"
 
     try:
-        import grpc
         from google.cloud import tasks_v2
         from google.cloud.tasks_v2.services.cloud_tasks.transports import CloudTasksGrpcTransport
     except ImportError:
@@ -318,7 +335,7 @@ def observe_cloudtasks(summary: bool = False) -> dict[str, Any]:
 
     channel = None
     try:
-        channel = grpc.insecure_channel(f"127.0.0.1:{port}")
+        channel = cloudtasks_channel(port)
         transport = CloudTasksGrpcTransport(channel=channel)
         client = tasks_v2.CloudTasksClient(transport=transport)
         queue_rows: list[dict[str, Any]] = []

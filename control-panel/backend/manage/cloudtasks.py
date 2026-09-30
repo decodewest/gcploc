@@ -9,7 +9,6 @@ import observe
 
 def _client():
     try:
-        import grpc
         from google.cloud import tasks_v2
         from google.cloud.tasks_v2.services.cloud_tasks.transports import CloudTasksGrpcTransport
     except ImportError as exc:
@@ -17,8 +16,7 @@ def _client():
             "google-cloud-tasks is not installed; install it to manage Cloud Tasks from the control panel"
         ) from exc
 
-    port = observe.cloudtasks_host_port()
-    channel = grpc.insecure_channel(f"127.0.0.1:{port}")
+    channel = observe.cloudtasks_channel()
     transport = CloudTasksGrpcTransport(channel=channel)
     return tasks_v2.CloudTasksClient(transport=transport), channel
 
